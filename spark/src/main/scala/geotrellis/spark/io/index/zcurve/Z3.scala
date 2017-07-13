@@ -121,8 +121,13 @@ object Z3 {
 
       val min: Long = prefix | (quad << offset) // QR + 000..
       val max: Long = min | (1L << offset) - 1  // QR + 111..
+      val diff: Long = max - min
+
       val qr = Z3Range(new Z3(min), new Z3(max))
-      if (sr contains qr){                               // whole range matches, happy day        
+
+      // Use a fuzzy search.  Due to some sort of bug too many ranges were being created which was crashing the system (both oom and zookeeper heartbeat based errors).
+      // Additional filtering is done Spark side to ensure correct tiles are returned
+      if ((sr contains qr) || ((sr overlaps qr) && (diff < 100000000L))){
         mq += (qr.min.z, qr.max.z) 
         reportCounter +=1
       } else if (offset > 0 && (sr overlaps qr)) { // some portion of this range are excluded      

@@ -51,6 +51,9 @@ object AccumuloRDDReader {
     InputFormatBase.setInputTableName(job, table)
 
     val ranges = queryKeyBounds.flatMap(decomposeBounds).asJava
+
+    println("Accumulo ranges computed.  Configuring and executing Accumulo batch scan.")
+
     InputFormatBase.setRanges(job, ranges)
     InputFormatBase.fetchColumns(job, List(new AccumuloPair(columnFamily, null: Text)).asJava)
     InputFormatBase.setBatchScan(job, true)
@@ -65,10 +68,15 @@ object AccumuloRDDReader {
       AvroEncoder.fromBinary(kwWriterSchema.value.getOrElse(codec.value.schema), value.get)(codec.value)
     }
     .flatMap { pairs: Vector[(K, V)] =>
+      /*
       if(filterIndexOnly)
         pairs
       else
         pairs.filter { pair => includeKey(pair._1) }
+      */
+      
+      // Do not filter, buggy
+      pairs
     }
   }
 }
