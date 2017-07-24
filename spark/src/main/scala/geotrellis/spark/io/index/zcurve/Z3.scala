@@ -116,6 +116,12 @@ object Z3 {
     var recCounter = 0
     var reportCounter = 0
 
+    // Use a fuzzy search.  Otherwise too many Accumulo range objects are created (billions to trillions).
+    // This both takes up lots of memory (10+ GB), but even worse, causes very long (minutes) GC pauses that causes zookeeper heartbeats to timeout, crashing the entire workflow.
+    // Additional filtering is done Spark side to ensure correct tiles are returned
+    val fuzzyLimit: Long = System.getProperty("layer.reader.fuzzy.limit").toLong
+    println("Computing Accumulo ZRanges with fuzzy limit: " + fuzzyLimit)
+
     def _zranges(prefix: Long, offset: Int, quad: Long): Unit = {      
       recCounter += 1
 
@@ -125,9 +131,7 @@ object Z3 {
 
       val qr = Z3Range(new Z3(min), new Z3(max))
 
-      // Use a fuzzy search.  Due to some sort of bug too many ranges were being created which was crashing the system (both oom and zookeeper heartbeat based errors).
-      // Additional filtering is done Spark side to ensure correct tiles are returned
-      if ((sr contains qr) || ((sr overlaps qr) && (diff < 100000000L))){
+      if ((sr contains qr) || ((sr overlaps qr) && (diff < fuzzyLimit))){
         mq += (qr.min.z, qr.max.z) 
         reportCounter +=1
       } else if (offset > 0 && (sr overlaps qr)) { // some portion of this range are excluded      
@@ -146,6 +150,7 @@ object Z3 {
     var prefix: Long = 0
     var offset = MAX_BITS*MAX_DIM                
     _zranges(prefix, offset, 0) // the entire space
+    println("Accumulo ZRanges Computed: " + mq.size)
     mq.toSeq
   }
 }
